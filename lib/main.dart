@@ -46,8 +46,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final filtrados = productos
-        .where((p) => p.nombre.toLowerCase().contains(query.toLowerCase()))
-        .toList();
+    .where((p) => fuzzyMatch(p.nombre, query))
+    .toList();
+
 
     return Scaffold(
       appBar: AppBar(
@@ -146,4 +147,13 @@ class BoletaScreen extends StatelessWidget {
       ),
     );
   }
+}
+bool fuzzyMatch(String producto, String query) {
+  int j = 0;
+  for (int i = 0; i < producto.length && j < query.length; i++) {
+    if (producto[i].toLowerCase() == query[j].toLowerCase()) {
+      j++;
+    }
+  }
+  return j == query.length;
 }
