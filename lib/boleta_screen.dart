@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:producto_calculador/item_boleta.dart';
 import 'producto.dart';
 import 'dart:collection';
 
 class BoletaScreen extends StatelessWidget {
-  final List<Producto> productos;
+  final List<ItemBoleta> items;
 
-  const BoletaScreen({Key? key, required this.productos}) : super(key: key);
+  const BoletaScreen({Key? key, required this.items}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final Map<_ProductoAgrupado, int> agrupados = {};
+    final Map<_ProductoAgrupado, double> agrupados = {};
 
-    for (var p in productos) {
+    for (var p in items) {
       final key = _ProductoAgrupado(
         nombre: p.nombre,
         tipo: _getTipo(p),
         precio: _getPrecio(p),
         detalle: _getDetalleCantidad(p),
       );
-      agrupados.update(key, (cantidad) => cantidad + 1, ifAbsent: () => 1);
+      agrupados.update(key, (cantidad) => cantidad + p.cantidad, ifAbsent: () => p.cantidad);
     }
 
     double total = agrupados.entries.fold(0, (suma, e) {
@@ -76,29 +77,20 @@ class BoletaScreen extends StatelessWidget {
     );
   }
 
-  String _getTipo(Producto p) {
-    if (p.precioCaja != null && p.precioCaja! > 0) return 'Caja';
-    if (p.precioPaquete != null && p.precioPaquete! > 0) return 'Paquete';
-    return 'Unidad';
+  String _getTipo(ItemBoleta p) {
+    return p.tipo;
   }
 
-  String _getDetalleCantidad(Producto p) {
-    if (p.precioCaja != null && p.precioCaja! > 0) {
-      return '${p.paqueteXCja} paq. x ${p.unidXPaquete} unid.';
-    } else if (p.precioPaquete != null && p.precioPaquete! > 0) {
-      return '${p.unidXPaquete} unid.';
-    }
-    return '1 unid.';
+  String _getDetalleCantidad(ItemBoleta p) {
+    return p.detalle;
   }
 
-  double _getPrecio(Producto p) {
-    if (p.precioCaja != null && p.precioCaja! > 0) return p.precioCaja!;
-    if (p.precioPaquete != null && p.precioPaquete! > 0) return p.precioPaquete!;
-    return p.precioUnidad;
+  double _getPrecio(ItemBoleta p) {
+    return p.precioUnitario;
   }
 }
 
-// Clase auxiliar para agrupar productos
+// Clase auxiliar para agrupar items
 class _ProductoAgrupado {
   final String nombre;
   final String tipo;

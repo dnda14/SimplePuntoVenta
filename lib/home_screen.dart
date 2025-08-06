@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
+import 'package:producto_calculador/item_boleta.dart';
 import 'producto.dart';
 import 'boleta_screen.dart';
 import 'producto_service.dart';
@@ -13,7 +14,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Producto> productos = [];
-  List<Producto> boleta = [];
+  List<ItemBoleta> boleta = [];
   String query = '';
   bool isLoading = true;
 
@@ -69,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     title: Text(producto.nombre),
                     subtitle: Text(producto.priceDisplay),
                     trailing: _buildAddButton(producto),
-                    onTap: () => _addToBoleta(producto, 'unidad'),
+                    onTap: () => _addToBoleta(producto, 'unidad', 1),
                   );
                 },
               ),
@@ -81,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => BoletaScreen(productos: boleta),
+                          builder: (_) => BoletaScreen(items: boleta),
                         ),
                       );
                     },
@@ -148,59 +149,68 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _addToBoleta(Producto originalProduct, String tipo) {
-    final productoParaBoleta = Producto(
-      nombre: originalProduct.nombre,
-      precioUnidad: originalProduct.precioUnidad,
-      precioPaquete: tipo == 'paquete' ? originalProduct.precioPaquete : null,
-      precioCaja: tipo == 'caja' ? originalProduct.precioCaja : null,
-      unidXPaquete: originalProduct.unidXPaquete,
-      paqueteXCja: originalProduct.paqueteXCja,
+  void _addToBoleta(Producto producto, String tipo, double cantidad) {
+    final index = boleta.indexWhere(
+      (item) => item.producto.nombre == producto.nombre && item.tipo == tipo,
     );
 
-    setState(() => boleta.add(productoParaBoleta));
+    if (index != -1) {
+      // Ya está en la lista → sumamos la cantidad
+      setState(() {
+        boleta[index] = ItemBoleta(
+          producto: producto,
+          tipo: tipo,
+          cantidad: boleta[index].cantidad + cantidad,
+        );
+      });
+    } else {
+      // Nuevo producto en boleta
+      setState(() {
+        boleta.add(
+          ItemBoleta(producto: producto, tipo: tipo, cantidad: cantidad),
+        );
+      });
+    }
   }
+
   void _showCantidadDialog(Producto producto, String tipo) {
-  final TextEditingController _cantidadController = TextEditingController();
+    final TextEditingController _cantidadController = TextEditingController();
 
-  showDialog(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: Text('Cantidad - ${producto.nombre}'),
-        content: TextField(
-          controller: _cantidadController,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            labelText: 'Ingrese cantidad',
-            hintText: 'Ej: 2',
-            border: OutlineInputBorder(),
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Cantidad - ${producto.nombre}'),
+          content: TextField(
+            controller: _cantidadController,
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Ingrese cantidad',
+              hintText: 'Ej: 2 o 0.5',
+              border: OutlineInputBorder(),
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(), // Volver
-            child: Text('🔙 Atrás'),
-          ),
-          TextButton(
-            onPressed: () {
-              final cantidad = int.tryParse(_cantidadController.text);
-              if (cantidad == null || cantidad <= 0) return;
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(), // Volver
+              child: Text('🔙 Atrás'),
+            ),
+            TextButton(
+              onPressed: () {
+                final cantidad = double.tryParse(_cantidadController.text);
+                if (cantidad == null || cantidad <= 0) return;
 
-              for (int i = 0; i < cantidad; i++) {
-                _addToBoleta(producto, tipo);
-              }
+                _addToBoleta(producto, tipo, cantidad);
 
-              Navigator.of(context).pop(); // Cierra diálogo
-            },
-            child: Text('✔️ Aceptar'),
-          ),
-        ],
-      );
-    },
-  );
-}
-
+                Navigator.of(context).pop(); // Cierra diálogo
+              },
+              child: Text('✔️ Aceptar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   bool fuzzyMatch(String producto, String query) {
     int j = 0;
