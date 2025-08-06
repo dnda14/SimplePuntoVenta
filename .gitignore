@@ -52,4 +52,5 @@ app.*.map.json
 **/ios/DerivedData/
 **/ios/.flutter-plugins
 
+assets/
 

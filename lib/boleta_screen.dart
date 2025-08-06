@@ -8,7 +8,15 @@ class BoletaScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    double total = productos.fold(0, (suma, p) => suma + p.precio);
+    // Calculate total considering package/box prices
+    double total = productos.fold(0, (suma, p) {
+      if (p.precioCaja != null && p.precioCaja! > 0) {
+        return suma + p.precioCaja!;
+      } else if (p.precioPaquete != null && p.precioPaquete! > 0) {
+        return suma + p.precioPaquete!;
+      }
+      return suma + p.precioUnidad;
+    });
 
     return Scaffold(
       appBar: AppBar(title: Text('Boleta Generada')),
@@ -24,7 +32,11 @@ class BoletaScreen extends StatelessWidget {
                   final p = productos[index];
                   return ListTile(
                     title: Text(p.nombre),
-                    trailing: Text('S/ ${p.precio.toStringAsFixed(2)}'),
+                    subtitle: _buildQuantityType(p),
+                    trailing: Text(
+                      'S/ ${_getPrice(p).toStringAsFixed(2)}',
+                      style: TextStyle(fontSize: 16),
+                    ),
                   );
                 },
               ),
@@ -33,16 +45,39 @@ class BoletaScreen extends StatelessWidget {
             ListTile(
               title: Text(
                 'Total',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
               trailing: Text(
                 'S/ ${total.toStringAsFixed(2)}',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Volver'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: Size(double.infinity, 50),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildQuantityType(Producto p) {
+    if (p.precioCaja != null && p.precioCaja! > 0) {
+      return Text('1 caja (${p.paqueteXCja} paq. x ${p.unidXPaquete} unid.)');
+    } else if (p.precioPaquete != null && p.precioPaquete! > 0) {
+      return Text('1 paquete (${p.unidXPaquete} unid.)');
+    }
+    return Text('1 unidad');
+  }
+
+  double _getPrice(Producto p) {
+    if (p.precioCaja != null && p.precioCaja! > 0) return p.precioCaja!;
+    if (p.precioPaquete != null && p.precioPaquete! > 0) return p.precioPaquete!;
+    return p.precioUnidad;
   }
 }

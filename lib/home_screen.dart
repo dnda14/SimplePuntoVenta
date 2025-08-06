@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:logger/logger.dart';
 import 'producto.dart';
 import 'boleta_screen.dart';
+import 'producto_service.dart';
+
+final logger = Logger();
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -8,24 +12,36 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final List<Producto> productos = [
-    Producto('Arroz', 4.50),
-    Producto('Azúcar', 3.20),
-    Producto('Aceite', 7.80),
-    Producto('Pan', 1.00),
-    Producto('Huevos', 6.00),
-    Producto('Leche', 3.80),
-    Producto('Fideos', 2.90),
-    Producto('Atún', 5.50),
-    Producto('Mantequilla', 3.60),
-    Producto('Cereal', 8.90),
-  ];
-
+  List<Producto> productos = [];
   List<Producto> boleta = [];
   String query = '';
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final loadedProducts = await ProductoService.loadProducts();
+      setState(() {
+        productos = loadedProducts;
+        isLoading = false;
+      });
+    } catch (e, stackTrace) {
+      logger.e("Error cargando productos", error: e, stackTrace: stackTrace);
+      setState(() => isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Center(child: CircularProgressIndicator());
+    }
+
     final filtrados = productos
         .where((p) => fuzzyMatch(p.nombre, query))
         .toList();
@@ -53,11 +69,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   final producto = filtrados[index];
                   return ListTile(
                     title: Text(producto.nombre),
-                    subtitle: Text('S/ ${producto.precio.toStringAsFixed(2)}'),
-                    trailing: Icon(Icons.add),
-                    onTap: () {
-                      setState(() => boleta.add(producto));
-                    },
+                    subtitle: Text(producto.priceDisplay),
+                    trailing: _buildAddButton(producto),
+                    onTap: () => _addToBoleta(producto, 'unidad'),
                   );
                 },
               ),
@@ -79,6 +93,61 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildAddButton(Producto producto) {
+    if (!producto.hasPack && !producto.hasBox) {
+      return IconButton(
+        icon: Icon(Icons.add),
+        onPressed: () => _addToBoleta(producto, 'unidad'),
+      );
+    }
+    
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.add),
+      onSelected: (value) => _addToBoleta(producto, value),
+      itemBuilder: (context) {
+        final options = [
+          PopupMenuItem(
+            value: 'unidad',
+            child: Text('Unidad: S/${producto.precioUnidad}'),
+          ),
+        ];
+        
+        if (producto.hasPack) {
+          options.add(
+            PopupMenuItem(
+              value: 'paquete',
+              child: Text('Paquete: S/${producto.precioPaquete} (${producto.unidXPaquete} unid)'),
+            ),
+          );
+        }
+        
+        if (producto.hasBox) {
+          options.add(
+            PopupMenuItem(
+              value: 'caja',
+              child: Text('Caja: S/${producto.precioCaja} (${producto.paqueteXCja} paq)'),
+            ),
+          );
+        }
+        
+        return options;
+      },
+    );
+  }
+
+  void _addToBoleta(Producto originalProduct, String tipo) {
+    final productoParaBoleta = Producto(
+      nombre: originalProduct.nombre,
+      precioUnidad: originalProduct.precioUnidad,
+      precioPaquete: tipo == 'paquete' ? originalProduct.precioPaquete : null,
+      precioCaja: tipo == 'caja' ? originalProduct.precioCaja : null,
+      unidXPaquete: originalProduct.unidXPaquete,
+      paqueteXCja: originalProduct.paqueteXCja,
+    );
+    
+    setState(() => boleta.add(productoParaBoleta));
   }
 
   bool fuzzyMatch(String producto, String query) {
