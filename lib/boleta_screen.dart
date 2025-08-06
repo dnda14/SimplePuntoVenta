@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'producto.dart';
+import 'dart:collection';
 
 class BoletaScreen extends StatelessWidget {
   final List<Producto> productos;
@@ -8,14 +9,20 @@ class BoletaScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Calculate total considering package/box prices
-    double total = productos.fold(0, (suma, p) {
-      if (p.precioCaja != null && p.precioCaja! > 0) {
-        return suma + p.precioCaja!;
-      } else if (p.precioPaquete != null && p.precioPaquete! > 0) {
-        return suma + p.precioPaquete!;
-      }
-      return suma + p.precioUnidad;
+    final Map<_ProductoAgrupado, int> agrupados = {};
+
+    for (var p in productos) {
+      final key = _ProductoAgrupado(
+        nombre: p.nombre,
+        tipo: _getTipo(p),
+        precio: _getPrecio(p),
+        detalle: _getDetalleCantidad(p),
+      );
+      agrupados.update(key, (cantidad) => cantidad + 1, ifAbsent: () => 1);
+    }
+
+    double total = agrupados.entries.fold(0, (suma, e) {
+      return suma + (e.key.precio * e.value);
     });
 
     return Scaffold(
@@ -26,15 +33,18 @@ class BoletaScreen extends StatelessWidget {
           children: [
             Expanded(
               child: ListView.separated(
-                itemCount: productos.length,
+                itemCount: agrupados.length,
                 separatorBuilder: (_, __) => Divider(),
                 itemBuilder: (context, index) {
-                  final p = productos[index];
+                  final entry = agrupados.entries.elementAt(index);
+                  final producto = entry.key;
+                  final cantidad = entry.value;
+
                   return ListTile(
-                    title: Text(p.nombre),
-                    subtitle: _buildQuantityType(p),
+                    title: Text(producto.nombre),
+                    subtitle: Text('${cantidad} x ${producto.tipo} (${producto.detalle})'),
                     trailing: Text(
-                      'S/ ${_getPrice(p).toStringAsFixed(2)}',
+                      'S/ ${(producto.precio * cantidad).toStringAsFixed(2)}',
                       style: TextStyle(fontSize: 16),
                     ),
                   );
@@ -66,18 +76,53 @@ class BoletaScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildQuantityType(Producto p) {
-    if (p.precioCaja != null && p.precioCaja! > 0) {
-      return Text('1 caja (${p.paqueteXCja} paq. x ${p.unidXPaquete} unid.)');
-    } else if (p.precioPaquete != null && p.precioPaquete! > 0) {
-      return Text('1 paquete (${p.unidXPaquete} unid.)');
-    }
-    return Text('1 unidad');
+  String _getTipo(Producto p) {
+    if (p.precioCaja != null && p.precioCaja! > 0) return 'Caja';
+    if (p.precioPaquete != null && p.precioPaquete! > 0) return 'Paquete';
+    return 'Unidad';
   }
 
-  double _getPrice(Producto p) {
+  String _getDetalleCantidad(Producto p) {
+    if (p.precioCaja != null && p.precioCaja! > 0) {
+      return '${p.paqueteXCja} paq. x ${p.unidXPaquete} unid.';
+    } else if (p.precioPaquete != null && p.precioPaquete! > 0) {
+      return '${p.unidXPaquete} unid.';
+    }
+    return '1 unid.';
+  }
+
+  double _getPrecio(Producto p) {
     if (p.precioCaja != null && p.precioCaja! > 0) return p.precioCaja!;
     if (p.precioPaquete != null && p.precioPaquete! > 0) return p.precioPaquete!;
     return p.precioUnidad;
   }
+}
+
+// Clase auxiliar para agrupar productos
+class _ProductoAgrupado {
+  final String nombre;
+  final String tipo;
+  final double precio;
+  final String detalle;
+
+  _ProductoAgrupado({
+    required this.nombre,
+    required this.tipo,
+    required this.precio,
+    required this.detalle,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _ProductoAgrupado &&
+          runtimeType == other.runtimeType &&
+          nombre == other.nombre &&
+          tipo == other.tipo &&
+          precio == other.precio &&
+          detalle == other.detalle;
+
+  @override
+  int get hashCode =>
+      nombre.hashCode ^ tipo.hashCode ^ precio.hashCode ^ detalle.hashCode;
 }

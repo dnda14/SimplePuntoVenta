@@ -47,9 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Boleta de productos'),
-      ),
+      appBar: AppBar(title: Text('Boleta de productos')),
       body: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -99,39 +97,52 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!producto.hasPack && !producto.hasBox) {
       return IconButton(
         icon: Icon(Icons.add),
-        onPressed: () => _addToBoleta(producto, 'unidad'),
+        onPressed: () => _showCantidadDialog(producto, 'unidad'),
       );
     }
-    
+
     return PopupMenuButton<String>(
       icon: Icon(Icons.add),
-      onSelected: (value) => _addToBoleta(producto, value),
+      onSelected: (value) {
+        if (value == 'cancelar') return;
+        _showCantidadDialog(producto, value);
+      },
       itemBuilder: (context) {
-        final options = [
+        final options = <PopupMenuEntry<String>>[
           PopupMenuItem(
             value: 'unidad',
             child: Text('Unidad: S/${producto.precioUnidad}'),
           ),
         ];
-        
+
         if (producto.hasPack) {
           options.add(
             PopupMenuItem(
               value: 'paquete',
-              child: Text('Paquete: S/${producto.precioPaquete} (${producto.unidXPaquete} unid)'),
+              child: Text(
+                'Paquete: S/${producto.precioPaquete} (${producto.unidXPaquete} unid)',
+              ),
             ),
           );
         }
-        
+
         if (producto.hasBox) {
           options.add(
             PopupMenuItem(
               value: 'caja',
-              child: Text('Caja: S/${producto.precioCaja} (${producto.paqueteXCja} paq)'),
+              child: Text(
+                'Caja: S/${producto.precioCaja} (${producto.paqueteXCja} paq)',
+              ),
             ),
           );
         }
-        
+
+        // Agregar opción cancelar
+        options.add(const PopupMenuDivider());
+        options.add(
+          const PopupMenuItem(value: 'cancelar', child: Text('❌ Cancelar')),
+        );
+
         return options;
       },
     );
@@ -146,9 +157,50 @@ class _HomeScreenState extends State<HomeScreen> {
       unidXPaquete: originalProduct.unidXPaquete,
       paqueteXCja: originalProduct.paqueteXCja,
     );
-    
+
     setState(() => boleta.add(productoParaBoleta));
   }
+  void _showCantidadDialog(Producto producto, String tipo) {
+  final TextEditingController _cantidadController = TextEditingController();
+
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: Text('Cantidad - ${producto.nombre}'),
+        content: TextField(
+          controller: _cantidadController,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Ingrese cantidad',
+            hintText: 'Ej: 2',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(), // Volver
+            child: Text('🔙 Atrás'),
+          ),
+          TextButton(
+            onPressed: () {
+              final cantidad = int.tryParse(_cantidadController.text);
+              if (cantidad == null || cantidad <= 0) return;
+
+              for (int i = 0; i < cantidad; i++) {
+                _addToBoleta(producto, tipo);
+              }
+
+              Navigator.of(context).pop(); // Cierra diálogo
+            },
+            child: Text('✔️ Aceptar'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 
   bool fuzzyMatch(String producto, String query) {
     int j = 0;
