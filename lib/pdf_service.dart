@@ -13,56 +13,27 @@ class PDFService {
     BoletaProvider boletaProvider,
     String businessName,
   ) async {
-    print('=== PDF GENERATION START ===');
-    
     try {
-      // Step 1: Check if we have data
-      print('Step 1: Checking boleta data...');
-      if (boletaProvider.groupedItems.isEmpty) {
-        throw Exception('No hay productos en la boleta');
-      }
-      print('✓ Data found: ${boletaProvider.groupedItems.length} product types');
-      print('✓ Total items: ${boletaProvider.itemCount}');
-      print('✓ Total price: ${boletaProvider.total}');
-
-      // Step 2: Request permissions (with timeout)
-      print('Step 2: Requesting permissions...');
-      await _requestStoragePermission().timeout(
-        Duration(seconds: 10),
-        onTimeout: () {
-          print('⚠️ Permission request timed out, continuing anyway');
-        },
-      );
-      print('✓ Permissions handled');
-
-      // Step 3: Generate PDF (with timeout)
-      print('Step 3: Generating PDF...');
-      final pdf = await _generateBoletaPDF(boletaProvider, businessName).timeout(
-        Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('PDF generation timed out after 30 seconds');
-        },
-      );
-      print('✓ PDF generated successfully');
+      print('Starting PDF generation...');
       
-      // Step 4: Save to device (with timeout)
-      print('Step 4: Saving PDF to device...');
-      final filePath = await _savePDFToDevice(pdf, boletaProvider).timeout(
-        Duration(seconds: 15),
-        onTimeout: () {
-          throw Exception('PDF save timed out after 15 seconds');
-        },
-      );
-      print('✓ PDF saved successfully to: $filePath');
+      // Request storage permission
+      await _requestStoragePermission();
+      print('Permissions granted');
+
+      // Generate PDF
+      final pdf = await _generateBoletaPDF(boletaProvider, businessName);
+      print('PDF generated successfully');
       
-      print('=== PDF GENERATION SUCCESS ===');
+      // Save to device
+      final filePath = await _savePDFToDevice(pdf, boletaProvider);
+      print('PDF saved successfully to: $filePath');
+      
+      // Return file path
       return filePath;
       
-    } catch (e, stackTrace) {
-      print('=== PDF GENERATION ERROR ===');
-      print('Error: $e');
-      print('Stack trace: $stackTrace');
-      rethrow;
+    } catch (e) {
+      print('Error in PDF generation: $e');
+      throw Exception('Error generando PDF: $e');
     }
   }
 
@@ -78,8 +49,7 @@ class PDFService {
         name: 'Boleta_${_getFormattedDateTime()}.pdf',
       );
     } catch (e) {
-      print('Error in previewBoleta: $e');
-      rethrow;
+      throw Exception('Error previsualizando PDF: $e');
     }
   }
 
@@ -87,235 +57,272 @@ class PDFService {
     BoletaProvider boletaProvider,
     String businessName,
   ) async {
-    print('  📄 Creating PDF document...');
     final pdf = pw.Document();
     final agrupados = boletaProvider.groupedItems;
     final agrupadosList = agrupados.entries.toList();
     final now = DateTime.now();
     
-    // Skip Google Fonts to avoid network issues
-    print('  📄 Using default fonts (skipping Google Fonts)...');
+    // Load fonts with error handling
+    pw.Font? font;
+    pw.Font? fontBold;
     
     try {
-      pdf.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(20),
-          build: (pw.Context context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                // Header - Simplified
-                pw.Container(
-                  width: double.infinity,
-                  padding: const pw.EdgeInsets.all(16),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.black),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.center,
-                    children: [
-                      pw.Text(
-                        businessName,
-                        style: pw.TextStyle(
-                          fontSize: 24,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 8),
-                      pw.Text(
-                        'BOLETA DE VENTA',
-                        style: pw.TextStyle(
-                          fontSize: 18,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 20),
+      font = await PdfGoogleFonts.nunitoRegular();
+      fontBold = await PdfGoogleFonts.nunitoBold();
+    } catch (e) {
+      print('Error loading fonts, using default: $e');
+      // Will use default fonts if Google Fonts fail
+    }
 
-                // Date and transaction info
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(20),
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Header
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(16),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.blue50,
+                  border: pw.Border.all(color: PdfColors.blue200),
+                  borderRadius: pw.BorderRadius.circular(8),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
-                    pw.Text('Fecha: ${_getFormattedDate(now)}'),
-                    pw.Text('Hora: ${_getFormattedTime(now)}'),
+                    pw.Text(
+                      businessName,
+                      style: pw.TextStyle(
+                        font: fontBold,
+                        fontSize: 24,
+                        color: PdfColors.blue800,
+                      ),
+                    ),
+                    pw.SizedBox(height: 8),
+                    pw.Text(
+                      'BOLETA DE VENTA',
+                      style: pw.TextStyle(
+                        font: fontBold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ],
                 ),
-                pw.SizedBox(height: 4),
-                pw.Text('N° Transacción: BOL-${now.millisecondsSinceEpoch}'),
-                pw.SizedBox(height: 20),
+              ),
+              pw.SizedBox(height: 20),
 
-                // Products table header - Simplified
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(8),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.black),
+              // Date and transaction info
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    'Fecha: ${_getFormattedDate(now)}',
+                    style: pw.TextStyle(font: font, fontSize: 12),
                   ),
-                  child: pw.Row(
-                    children: [
-                      pw.Expanded(
-                        flex: 4,
-                        child: pw.Text(
-                          'PRODUCTO',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                        ),
-                      ),
-                      pw.Expanded(
-                        flex: 2,
-                        child: pw.Text(
-                          'CANT.',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          textAlign: pw.TextAlign.center,
-                        ),
-                      ),
-                      pw.Expanded(
-                        flex: 2,
-                        child: pw.Text(
-                          'P. UNIT',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          textAlign: pw.TextAlign.center,
-                        ),
-                      ),
-                      pw.Expanded(
-                        flex: 2,
-                        child: pw.Text(
-                          'SUBTOTAL',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          textAlign: pw.TextAlign.right,
-                        ),
-                      ),
-                    ],
+                  pw.Text(
+                    'Hora: ${_getFormattedTime(now)}',
+                    style: pw.TextStyle(font: font, fontSize: 12),
                   ),
+                ],
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                'N° Transacción: BOL-${now.millisecondsSinceEpoch}',
+                style: pw.TextStyle(font: font, fontSize: 12),
+              ),
+              pw.SizedBox(height: 20),
+
+              // Products table header
+              pw.Container(
+                padding: const pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.grey200,
+                  border: pw.Border.all(color: PdfColors.grey400),
                 ),
-
-                // Products list - Simplified
-                pw.Column(
-                  children: agrupadosList.map((entry) {
-                    final producto = entry.key;
-                    final cantidad = entry.value;
-                    final subtotal = producto.precio * cantidad;
-
-                    return pw.Container(
-                      padding: const pw.EdgeInsets.all(8),
-                      decoration: pw.BoxDecoration(
-                        border: pw.Border.all(color: PdfColors.grey),
+                child: pw.Row(
+                  children: [
+                    pw.Expanded(
+                      flex: 4,
+                      child: pw.Text(
+                        'PRODUCTO',
+                        style: pw.TextStyle(font: fontBold, fontSize: 12),
                       ),
-                      child: pw.Row(
-                        children: [
-                          pw.Expanded(
-                            flex: 4,
-                            child: pw.Column(
-                              crossAxisAlignment: pw.CrossAxisAlignment.start,
-                              children: [
-                                pw.Text(producto.nombre),
-                                pw.Text(
-                                  '${producto.tipo} (${producto.detalle})',
-                                  style: pw.TextStyle(fontSize: 9),
-                                ),
-                              ],
-                            ),
-                          ),
-                          pw.Expanded(
-                            flex: 2,
-                            child: pw.Text(
-                              cantidad.toString(),
-                              textAlign: pw.TextAlign.center,
-                            ),
-                          ),
-                          pw.Expanded(
-                            flex: 2,
-                            child: pw.Text(
-                              'S/ ${producto.precio.toStringAsFixed(2)}',
-                              textAlign: pw.TextAlign.center,
-                            ),
-                          ),
-                          pw.Expanded(
-                            flex: 2,
-                            child: pw.Text(
-                              'S/ ${subtotal.toStringAsFixed(2)}',
-                              textAlign: pw.TextAlign.right,
-                            ),
-                          ),
-                        ],
+                    ),
+                    pw.Expanded(
+                      flex: 2,
+                      child: pw.Text(
+                        'CANTIDAD',
+                        style: pw.TextStyle(font: fontBold, fontSize: 12),
+                        textAlign: pw.TextAlign.center,
                       ),
-                    );
-                  }).toList(),
+                    ),
+                    pw.Expanded(
+                      flex: 2,
+                      child: pw.Text(
+                        'P. UNIT',
+                        style: pw.TextStyle(font: fontBold, fontSize: 12),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                    ),
+                    pw.Expanded(
+                      flex: 2,
+                      child: pw.Text(
+                        'SUBTOTAL',
+                        style: pw.TextStyle(font: fontBold, fontSize: 12),
+                        textAlign: pw.TextAlign.right,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
 
-                pw.SizedBox(height: 20),
+              // Products list
+              pw.Column(
+                children: agrupadosList.map((entry) {
+                  final producto = entry.key;
+                  final cantidad = entry.value;
+                  final subtotal = producto.precio * cantidad;
 
-                // Totals - Simplified
-                pw.Container(
-                  width: double.infinity,
-                  padding: const pw.EdgeInsets.all(16),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.black),
-                  ),
-                  child: pw.Column(
-                    children: [
-                      pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                        children: [
-                          pw.Text('TOTAL DE ITEMS:'),
-                          pw.Text(
-                            '${boletaProvider.itemCount}',
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          ),
-                        ],
+                  return pw.Container(
+                    padding: const pw.EdgeInsets.all(8),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border(
+                        left: pw.BorderSide(color: PdfColors.grey400),
+                        right: pw.BorderSide(color: PdfColors.grey400),
+                        bottom: pw.BorderSide(color: PdfColors.grey400),
                       ),
-                      pw.SizedBox(height: 8),
-                      pw.Divider(),
-                      pw.SizedBox(height: 8),
-                      pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                        children: [
-                          pw.Text(
-                            'TOTAL A PAGAR:',
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          ),
-                          pw.Text(
-                            'S/ ${boletaProvider.total.toStringAsFixed(2)}',
-                            style: pw.TextStyle(
-                              fontSize: 18,
-                              fontWeight: pw.FontWeight.bold,
+                    ),
+                    child: pw.Column(
+                      children: [
+                        pw.Row(
+                          children: [
+                            pw.Expanded(
+                              flex: 4,
+                              child: pw.Column(
+                                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                children: [
+                                  pw.Text(
+                                    producto.nombre,
+                                    style: pw.TextStyle(font: fontBold, fontSize: 11),
+                                  ),
+                                  pw.Text(
+                                    '${producto.tipo} (${producto.detalle})',
+                                    style: pw.TextStyle(font: font, fontSize: 9),
+                                  ),
+                                ],
+                              ),
                             ),
+                            pw.Expanded(
+                              flex: 2,
+                              child: pw.Text(
+                                cantidad.toString(),
+                                style: pw.TextStyle(font: font, fontSize: 11),
+                                textAlign: pw.TextAlign.center,
+                              ),
+                            ),
+                            pw.Expanded(
+                              flex: 2,
+                              child: pw.Text(
+                                'S/ ${producto.precio.toStringAsFixed(2)}',
+                                style: pw.TextStyle(font: font, fontSize: 11),
+                                textAlign: pw.TextAlign.center,
+                              ),
+                            ),
+                            pw.Expanded(
+                              flex: 2,
+                              child: pw.Text(
+                                'S/ ${subtotal.toStringAsFixed(2)}',
+                                style: pw.TextStyle(font: font, fontSize: 11),
+                                textAlign: pw.TextAlign.right,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              pw.SizedBox(height: 20),
+
+              // Totals
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(16),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.green50,
+                  border: pw.Border.all(color: PdfColors.green200),
+                  borderRadius: pw.BorderRadius.circular(8),
+                ),
+                child: pw.Column(
+                  children: [
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(
+                          'TOTAL DE ITEMS:',
+                          style: pw.TextStyle(font: font, fontSize: 14),
+                        ),
+                        pw.Text(
+                          '${boletaProvider.itemCount}',
+                          style: pw.TextStyle(font: fontBold, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    pw.SizedBox(height: 8),
+                    pw.Divider(color: PdfColors.green300),
+                    pw.SizedBox(height: 8),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(
+                          'TOTAL A PAGAR:',
+                          style: pw.TextStyle(font: fontBold, fontSize: 18),
+                        ),
+                        pw.Text(
+                          'S/ ${boletaProvider.total.toStringAsFixed(2)}',
+                          style: pw.TextStyle(
+                            font: fontBold,
+                            fontSize: 20,
+                            color: PdfColors.green700,
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
+              ),
 
-                pw.Spacer(),
+              pw.Spacer(),
 
-                // Footer
-                pw.Center(
-                  child: pw.Column(
-                    children: [
-                      pw.Text(
-                        'Gracias por su compra',
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text('PDF generado el ${_getFormattedDateTime()}'),
-                    ],
-                  ),
+              // Footer
+              pw.Center(
+                child: pw.Column(
+                  children: [
+                    pw.Text(
+                      'Gracias por su compra',
+                      style: pw.TextStyle(font: fontBold, fontSize: 16),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'PDF generado el ${_getFormattedDateTime()}',
+                      style: pw.TextStyle(font: font, fontSize: 10),
+                    ),
+                  ],
                 ),
-              ],
-            );
-          },
-        ),
-      );
-      
-      print('  📄 PDF page added successfully');
-      return pdf;
-      
-    } catch (e) {
-      print('  ❌ Error creating PDF page: $e');
-      rethrow;
-    }
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf;
   }
 
   static Future<String> _savePDFToDevice(
@@ -323,38 +330,29 @@ class PDFService {
     BoletaProvider boletaProvider,
   ) async {
     try {
-      print('  💾 Getting storage directory...');
-      
       Directory? directory;
       
       if (Platform.isAndroid) {
-        // Try simple approach first
+        // Try multiple approaches for Android
         try {
-          directory = await getExternalStorageDirectory();
-          print('  💾 External storage: ${directory?.path}');
-          
-          if (directory != null) {
-            directory = Directory('${directory.path}/Boletas');
-            print('  💾 Creating Boletas directory: ${directory.path}');
-            
-            if (!await directory.exists()) {
-              await directory.create(recursive: true);
-              print('  💾 Directory created');
-            } else {
-              print('  💾 Directory already exists');
-            }
-          }
-        } catch (e) {
-          print('  ❌ External storage failed: $e');
-          // Try app documents directory as fallback
-          directory = await getApplicationDocumentsDirectory();
-          directory = Directory('${directory.path}/Boletas');
+          // First, try to use Downloads directory (most accessible)
+          directory = Directory('/storage/emulated/0/Download/Boletas');
           if (!await directory.exists()) {
             await directory.create(recursive: true);
           }
+        } catch (e) {
+          print('Could not access Downloads, trying external storage: $e');
+          // Fallback to external storage directory
+          directory = await getExternalStorageDirectory();
+          if (directory != null) {
+            directory = Directory('${directory.path}/Boletas');
+            if (!await directory.exists()) {
+              await directory.create(recursive: true);
+            }
+          }
         }
       } else {
-        // iOS
+        // For iOS
         directory = await getApplicationDocumentsDirectory();
         directory = Directory('${directory.path}/Boletas');
         if (!await directory.exists()) {
@@ -369,48 +367,44 @@ class PDFService {
       final fileName = 'Boleta_${_getFormattedDateTime()}.pdf';
       final file = File('${directory.path}/$fileName');
       
-      print('  💾 Saving PDF to: ${file.path}');
+      print('Attempting to save PDF to: ${file.path}');
       
       final pdfBytes = await pdf.save();
-      print('  💾 PDF bytes generated: ${pdfBytes.length} bytes');
-      
       await file.writeAsBytes(pdfBytes);
-      print('  💾 File written successfully');
       
-      // Verify file was created
-      if (await file.exists()) {
-        final fileSize = await file.length();
-        print('  ✓ File verified - Size: $fileSize bytes');
-        return file.path;
-      } else {
-        throw Exception('File was not created successfully');
-      }
+      print('PDF saved successfully to: ${file.path}');
+      return file.path;
       
     } catch (e) {
-      print('  ❌ Error in _savePDFToDevice: $e');
-      rethrow;
+      print('Error in _savePDFToDevice: $e');
+      throw Exception('Error guardando PDF: $e');
     }
   }
 
   static Future<void> _requestStoragePermission() async {
     if (Platform.isAndroid) {
-      try {
-        print('  🔐 Requesting storage permission...');
-        final status = await Permission.storage.request();
-        print('  🔐 Storage permission status: $status');
-        
-        // Don't throw error if permission denied, just log it
-        if (status.isDenied) {
-          print('  ⚠️ Storage permission denied, will try to save anyway');
+      // For Android 11+ (API 30+), request different permissions
+      Map<Permission, PermissionStatus> statuses = await [
+        Permission.storage,
+        Permission.manageExternalStorage,
+      ].request();
+
+      print('Permission statuses: $statuses');
+
+      // Check if we have at least one permission granted
+      bool hasPermission = statuses[Permission.storage]?.isGranted == true ||
+          statuses[Permission.manageExternalStorage]?.isGranted == true;
+
+      if (!hasPermission) {
+        // Try requesting photos permission as fallback
+        final photosStatus = await Permission.photos.request();
+        if (photosStatus.isDenied) {
+          throw Exception('Se necesitan permisos de almacenamiento para guardar el PDF');
         }
-      } catch (e) {
-        print('  ⚠️ Permission request failed: $e');
-        // Continue without throwing error
       }
     }
   }
 
-  // Helper methods remain the same
   static String _getFormattedDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }

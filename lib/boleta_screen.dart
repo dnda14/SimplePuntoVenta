@@ -72,9 +72,14 @@ class _BoletaScreenState extends State<BoletaScreen> {
                     style: TextStyle(fontSize: 18, color: Colors.grey),
                   ),
                   SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text('Volver a productos'),
+                  Padding(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).padding.bottom + 20,
+                    ),
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text('Volver a productos'),
+                    ),
                   ),
                 ],
               ),
@@ -85,12 +90,14 @@ class _BoletaScreenState extends State<BoletaScreen> {
           final agrupadosList = agrupados.entries.toList();
 
           return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  // Header info
-                  Container(
+            // Add bottom: false to let us handle bottom padding manually
+            bottom: false,
+            child: Column(
+              children: [
+                // Header info with horizontal padding
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                  child: Container(
                     padding: EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.blue.shade50,
@@ -115,11 +122,15 @@ class _BoletaScreenState extends State<BoletaScreen> {
                       ],
                     ),
                   ),
-                  SizedBox(height: 10),
-                  
-                  // Products list
-                  Expanded(
+                ),
+                
+                // Products list
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: ListView.separated(
+                      // Add bottom padding to the ListView
+                      padding: EdgeInsets.only(top: 10, bottom: 10),
                       itemCount: agrupadosList.length,
                       separatorBuilder: (_, __) => Divider(height: 1),
                       itemBuilder: (context, index) {
@@ -182,69 +193,79 @@ class _BoletaScreenState extends State<BoletaScreen> {
                       },
                     ),
                   ),
-                  
-                  // Total section
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.shade200),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'TOTAL A PAGAR',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                        Text(
-                          'S/ ${boletaProvider.total.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
+                ),
+                
+                // Bottom section with proper safe area handling
+                Container(
+                  padding: EdgeInsets.fromLTRB(
+                    12, // left
+                    0,  // top
+                    12, // right
+                    MediaQuery.of(context).padding.bottom + 20, // bottom with safe area
                   ),
-                  SizedBox(height: 20),
-                  
-                  // Action buttons with bottom padding for navigation
-                  Padding(
-                    padding: EdgeInsets.only(bottom: 20), // Extra bottom padding
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text('Seguir comprando'),
-                            style: ElevatedButton.styleFrom(
-                              minimumSize: Size(double.infinity, 50),
+                  child: Column(
+                    children: [
+                      // Total section
+                      Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green.shade200),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'TOTAL A PAGAR',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
+                            Text(
+                              'S/ ${boletaProvider.total.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      
+                      // Action buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text('Seguir comprando'),
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: Size(double.infinity, 50),
+                              ),
                             ),
                           ),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => _processSale(boletaProvider),
-                            child: Text('Procesar venta'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
-                              minimumSize: Size(double.infinity, 50),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => _processSale(boletaProvider),
+                              child: Text('Procesar venta'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                minimumSize: Size(double.infinity, 50),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           );
         },

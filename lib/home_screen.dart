@@ -75,103 +75,126 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
+      // Use SafeArea with bottom: false to handle bottom padding manually
+      body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Buscar producto',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.search),
+            // Search field
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              child: TextField(
+                decoration: InputDecoration(
+                  labelText: 'Buscar producto',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (value) => setState(() => query = value),
               ),
-              onChanged: (value) => setState(() => query = value),
             ),
-            SizedBox(height: 10),
+            
+            // Products list
             Expanded(
-              child: ListView.builder(
-                itemCount: filtrados.length,
-                itemBuilder: (context, index) {
-                  final producto = filtrados[index];
-                  return Card(
-                    child: ListTile(
-                      title: Text(producto.nombre),
-                      subtitle: Text(producto.priceDisplay),
-                      trailing: _buildAddButton(producto),
-                      onTap: () => _addToBoleta(producto, 'unidad', 1),
-                    ),
-                  );
-                },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: ListView.builder(
+                  // Add padding to avoid content being hidden behind navigation bar
+                  padding: EdgeInsets.only(top: 10, bottom: 10),
+                  itemCount: filtrados.length,
+                  itemBuilder: (context, index) {
+                    final producto = filtrados[index];
+                    return Card(
+                      child: ListTile(
+                        title: Text(producto.nombre),
+                        subtitle: Text(producto.priceDisplay),
+                        trailing: _buildAddButton(producto),
+                        onTap: () => _addToBoleta(producto, 'unidad', 1),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
-            SizedBox(height: 10),
-            Consumer<BoletaProvider>(
-              builder: (context, boletaProvider, child) {
-                return Column(
-                  children: [
-                    if (!boletaProvider.isEmpty)
-                      Container(
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue.shade200),
+            
+            // Bottom section with Consumer and buttons
+            Container(
+              padding: EdgeInsets.fromLTRB(
+                12, // left
+                10, // top
+                12, // right
+                MediaQuery.of(context).padding.bottom + 20, // bottom with safe area
+              ),
+              child: Consumer<BoletaProvider>(
+                builder: (context, boletaProvider, child) {
+                  return Column(
+                    children: [
+                      // Summary container
+                      if (!boletaProvider.isEmpty)
+                        Container(
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue.shade200),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Items: ${boletaProvider.itemCount}',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                              Text(
+                                'Total: S/ ${boletaProvider.total.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Items: ${boletaProvider.itemCount}',
-                              style: TextStyle(fontSize: 16),
+                      if (!boletaProvider.isEmpty) SizedBox(height: 10),
+                      
+                      // Action buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: boletaProvider.isEmpty
+                                  ? null
+                                  : () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => BoletaScreen(),
+                                        ),
+                                      );
+                                    },
+                              child: Text('Ver boleta'),
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: Size(double.infinity, 50),
+                              ),
                             ),
-                            Text(
-                              'Total: S/ ${boletaProvider.total.toStringAsFixed(2)}',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                          ),
+                          if (!boletaProvider.isEmpty) ...[
+                            SizedBox(width: 10),
+                            ElevatedButton(
+                              onPressed: () => _showClearDialog(boletaProvider),
+                              child: Icon(Icons.clear_all),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                                minimumSize: Size(50, 50),
                               ),
                             ),
                           ],
-                        ),
-                      ),
-                    SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: boletaProvider.isEmpty
-                                ? null
-                                : () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => BoletaScreen(),
-                                      ),
-                                    );
-                                  },
-                            child: Text('Ver boleta'),
-                            style: ElevatedButton.styleFrom(
-                              minimumSize: Size(double.infinity, 50),
-                            ),
-                          ),
-                        ),
-                        if (!boletaProvider.isEmpty) ...[
-                          SizedBox(width: 10),
-                          ElevatedButton(
-                            onPressed: () => _showClearDialog(boletaProvider),
-                            child: Icon(Icons.clear_all),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
-                              minimumSize: Size(50, 50),
-                            ),
-                          ),
                         ],
-                      ],
-                    ),
-                  ],
-                );
-              },
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -225,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         options.add(const PopupMenuDivider());
         options.add(
-          const PopupMenuItem(value: 'cancelar', child: Text('❌ Cancelar')),
+          const PopupMenuItem(value: 'cancelar', child: Text('✖ Cancelar')),
         );
 
         return options;
