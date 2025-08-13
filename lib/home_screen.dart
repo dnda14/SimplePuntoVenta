@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
-import 'package:producto_calculador/item_boleta.dart';
+import 'package:provider/provider.dart';
 import 'producto.dart';
 import 'boleta_screen.dart';
 import 'producto_service.dart';
+import 'boleta_provider.dart';
 
 final logger = Logger();
 
@@ -14,7 +15,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Producto> productos = [];
-  List<ItemBoleta> boleta = [];
   String query = '';
   bool isLoading = true;
 
@@ -40,7 +40,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return Center(child: CircularProgressIndicator());
+      return Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     final filtrados = productos
@@ -48,7 +50,31 @@ class _HomeScreenState extends State<HomeScreen> {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(title: Text('Boleta de productos')),
+      appBar: AppBar(
+        title: Text('Boleta de productos'),
+        actions: [
+          Consumer<BoletaProvider>(
+            builder: (context, boletaProvider, child) {
+              return boletaProvider.isEmpty
+                  ? Container()
+                  : Badge(
+                      label: Text('${boletaProvider.itemCount}'),
+                      child: IconButton(
+                        icon: Icon(Icons.receipt),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BoletaScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+            },
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -57,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: InputDecoration(
                 labelText: 'Buscar producto',
                 border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.search),
               ),
               onChanged: (value) => setState(() => query = value),
             ),
@@ -66,27 +93,85 @@ class _HomeScreenState extends State<HomeScreen> {
                 itemCount: filtrados.length,
                 itemBuilder: (context, index) {
                   final producto = filtrados[index];
-                  return ListTile(
-                    title: Text(producto.nombre),
-                    subtitle: Text(producto.priceDisplay),
-                    trailing: _buildAddButton(producto),
-                    onTap: () => _addToBoleta(producto, 'unidad', 1),
+                  return Card(
+                    child: ListTile(
+                      title: Text(producto.nombre),
+                      subtitle: Text(producto.priceDisplay),
+                      trailing: _buildAddButton(producto),
+                      onTap: () => _addToBoleta(producto, 'unidad', 1),
+                    ),
                   );
                 },
               ),
             ),
-            ElevatedButton(
-              onPressed: boleta.isEmpty
-                  ? null
-                  : () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => BoletaScreen(items: boleta),
+            SizedBox(height: 10),
+            Consumer<BoletaProvider>(
+              builder: (context, boletaProvider, child) {
+                return Column(
+                  children: [
+                    if (!boletaProvider.isEmpty)
+                      Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
                         ),
-                      );
-                    },
-              child: Text('Generar boleta'),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Items: ${boletaProvider.itemCount}',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                            Text(
+                              'Total: S/ ${boletaProvider.total.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: boletaProvider.isEmpty
+                                ? null
+                                : () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => BoletaScreen(),
+                                      ),
+                                    );
+                                  },
+                            child: Text('Ver boleta'),
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: Size(double.infinity, 50),
+                            ),
+                          ),
+                        ),
+                        if (!boletaProvider.isEmpty) ...[
+                          SizedBox(width: 10),
+                          ElevatedButton(
+                            onPressed: () => _showClearDialog(boletaProvider),
+                            child: Icon(Icons.clear_all),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              minimumSize: Size(50, 50),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -97,13 +182,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildAddButton(Producto producto) {
     if (!producto.hasPack && !producto.hasBox) {
       return IconButton(
-        icon: Icon(Icons.add),
+        icon: Icon(Icons.add_circle, color: Colors.green),
         onPressed: () => _showCantidadDialog(producto, 'unidad'),
       );
     }
 
     return PopupMenuButton<String>(
-      icon: Icon(Icons.add),
+      icon: Icon(Icons.add_circle, color: Colors.green),
       onSelected: (value) {
         if (value == 'cancelar') return;
         _showCantidadDialog(producto, value);
@@ -138,7 +223,6 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        // Agregar opción cancelar
         options.add(const PopupMenuDivider());
         options.add(
           const PopupMenuItem(value: 'cancelar', child: Text('❌ Cancelar')),
@@ -150,27 +234,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _addToBoleta(Producto producto, String tipo, double cantidad) {
-    final index = boleta.indexWhere(
-      (item) => item.producto.nombre == producto.nombre && item.tipo == tipo,
+    context.read<BoletaProvider>().addItem(producto, tipo, cantidad);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${producto.nombre} agregado a la boleta'),
+        duration: Duration(seconds: 1),
+        action: SnackBarAction(
+          label: 'Ver',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => BoletaScreen()),
+            );
+          },
+        ),
+      ),
     );
-
-    if (index != -1) {
-      // Ya está en la lista → sumamos la cantidad
-      setState(() {
-        boleta[index] = ItemBoleta(
-          producto: producto,
-          tipo: tipo,
-          cantidad: boleta[index].cantidad + cantidad,
-        );
-      });
-    } else {
-      // Nuevo producto en boleta
-      setState(() {
-        boleta.add(
-          ItemBoleta(producto: producto, tipo: tipo, cantidad: cantidad),
-        );
-      });
-    }
   }
 
   void _showCantidadDialog(Producto producto, String tipo) {
@@ -189,22 +269,56 @@ class _HomeScreenState extends State<HomeScreen> {
               hintText: 'Ej: 2 o 0.5',
               border: OutlineInputBorder(),
             ),
+            autofocus: true,
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(), // Volver
-              child: Text('🔙 Atrás'),
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancelar'),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () {
                 final cantidad = double.tryParse(_cantidadController.text);
-                if (cantidad == null || cantidad <= 0) return;
+                if (cantidad == null || cantidad <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Ingrese una cantidad válida')),
+                  );
+                  return;
+                }
 
                 _addToBoleta(producto, tipo, cantidad);
-
-                Navigator.of(context).pop(); // Cierra diálogo
+                Navigator.of(context).pop();
               },
-              child: Text('✔️ Aceptar'),
+              child: Text('Agregar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showClearDialog(BoletaProvider boletaProvider) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Limpiar boleta'),
+          content: Text('¿Está seguro de eliminar todos los productos de la boleta?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                boletaProvider.clearBoleta();
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Boleta limpiada')),
+                );
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: Text('Limpiar'),
             ),
           ],
         );
